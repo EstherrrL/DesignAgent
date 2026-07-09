@@ -4,7 +4,7 @@
 
 ---
 
-## ✨ 核心理念
+##  核心理念
 
 传统 AI 代码生成是「一次性输出」，质量难以保证。  
 本项目引入 **Designer Agent** 作为架构师角色，先输出设计文档，再由 Coder 严格按设计实现，Reviewer 也以设计文档为基准进行审查——**设计文档是整个系统的核心枢纽**。
@@ -15,7 +15,7 @@
 
 ---
 
-## 🏗 系统架构
+##  系统架构
 
 ```
 自然语言需求
@@ -53,9 +53,9 @@
 
 ---
 
-## 🤖 Agent 角色说明
+##  Agent 角色说明
 
-### 🎨 Designer Agent（核心）
+###  Designer Agent（核心）
 整个系统的**大脑**，承担两个关键职责：
 
 1. **需求拆解** — 将自然语言需求分解为 2-6 个可独立实现的子任务
@@ -67,17 +67,17 @@
 
 设计文档会同时传递给 Coder（作为实现规范）和 Reviewer（作为审查基准），确保三者在同一标准下协作。
 
-### 💻 Coder Agent
+###  Coder Agent
 - **首次生成**：调用 `generate_code`，严格按照 Designer 的设计文档实现代码
 - **迭代修复**：调用 `apply_fix`，根据 Reviewer 的具体问题进行针对性修复，同时保持对设计文档的忠实度
 
-### 🔍 Reviewer Agent
+###  Reviewer Agent
 - 调用 `review_code`，**以设计文档为基准**审查代码
 - 评分维度：设计符合度 / 完整性 / 正确性 / 健壮性 / 代码质量
 - 输出 0-10 分，附详细问题列表和改进建议
 - 得分 ≥ 7.0 视为通过
 
-### 🎛 Orchestrator
+###  Orchestrator
 - 驱动完整 Pipeline，维护全局状态
 - 每个子任务最多允许 `MAX_TASK_ATTEMPTS`（默认 3）次 Coder-Reviewer 循环
 - 3 次仍未通过 → 记录问题，强制推进下一子任务
@@ -85,7 +85,7 @@
 
 ---
 
-## 🛠 四个核心工具
+##  四个核心工具
 
 | 工具 | 调用时机 | 功能 |
 |------|---------|------|
@@ -96,7 +96,7 @@
 
 ---
 
-## 📁 目录结构
+##  目录结构
 
 ```
 DesignAgent/
@@ -132,7 +132,7 @@ DesignAgent/
 
 ---
 
-## 🚀 快速开始
+##  快速开始
 
 ### 1. 克隆 & 安装依赖
 
@@ -171,7 +171,7 @@ python main.py "Create a Go HTTP server with rate limiting middleware"
 
 ---
 
-## 📊 运行示例
+##  运行示例
 
 ```
 需求：用 Python 实现二分查找，要求类型注解和完善的错误处理
@@ -196,12 +196,12 @@ Step 4 Reviewer  → 得分 9.0/10 ✅ 通过
 Step 5 Assembler → 合并所有子任务代码
 Step 6 Tester    → ✅ 2/2 测试通过（0.032s）
 
-💾 代码已保存至 output/task_d0f71f10.py
+代码已保存至 output/task_d0f71f10.py
 ```
 
 ---
 
-## 📤 输出
+##  输出
 
 - 最终代码保存在 `output/task_<task_id>.<ext>`
 - 文件头部包含任务 ID、子任务通过率、需求描述
