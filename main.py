@@ -1,34 +1,33 @@
 #!/usr/bin/env python3
 """
-Multi-Agent Code Generation System
-====================================
-入口文件。
-
+Design-Code Multi-Agent System  （LangGraph 版）
+=================================================
 用法：
-    # 交互模式（命令行提示输入）
-    python main.py
-
-    # 直接传入需求
-    python main.py "用 Python 实现二分查找，要求有完善的错误处理和测试"
+    python main.py                         # 交互模式
+    python main.py "你的需求"               # 直接传入需求
+    python main.py --graph                 # 打印 Mermaid 流程图后退出
 """
 
 from __future__ import annotations
 
 import sys
+import uuid
 from pathlib import Path
 
-# 确保项目根目录在 Python 路径中
 sys.path.insert(0, str(Path(__file__).parent))
 
 from rich.console import Console
+from rich.panel import Panel
 from rich.prompt import Prompt
+from rich.syntax import Syntax
+from rich.table import Table
 
-from agents.orchestrator import Orchestrator
+from graph.pipeline import build_pipeline, get_mermaid
+from graph.state import PipelineState
 from utils.logger import logger
 
 console = Console()
 
-# ── 内置示例需求（无输入时使用）──────────────────────────────────────────────
 _DEFAULT_REQUIREMENT = (
     "Create a Python module implementing a thread-safe LRU Cache with the following features: "
     "1) get(key) and put(key, value) methods with O(1) complexity; "
@@ -38,15 +37,29 @@ _DEFAULT_REQUIREMENT = (
     "5) comprehensive docstrings and type hints."
 )
 
+# 语言 → 文件扩展名
+_EXT_MAP = {
+    "python": ".py", "javascript": ".js", "typescript": ".ts",
+    "java": ".java", "go": ".go", "rust": ".rs", "c++": ".cpp",
+    "c": ".c", "ruby": ".rb", "php": ".php", "swift": ".swift",
+    "kotlin": ".kt", "shell": ".sh",
+}
+
 
 # ── 主函数 ─────────────────────────────────────────────────────────────────────
 
 
 def main() -> int:
+    # --graph：打印 Mermaid 图后退出
+    if "--graph" in sys.argv:
+        console.print("\n[bold cyan]Pipeline Mermaid 流程图：[/bold cyan]\n")
+        console.print(get_mermaid())
+        return 0
+
     _print_banner()
 
     # 获取需求
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and not sys.argv[1].startswith("--"):
         requirement = " ".join(sys.argv[1:]).strip()
     else:
         console.print("[dim]输入您的编程需求（直接回车使用内置示例）：[/dim]\n")
@@ -55,25 +68,135 @@ def main() -> int:
             requirement = _DEFAULT_REQUIREMENT
             console.print(f"\n[dim]使用内置示例需求：{requirement[:80]}…[/dim]\n")
 
-    # 执行 Pipeline
-    orchestrator = Orchestrator()
+    task_id = uuid.uuid4().hex[:8]
+
+    # ── 打印 Pipeline 启动面板 ─────────────────────────────────────────────────
+    short_req = requirement if len(requirement) <= 120 else requirement[:120] + "…"
+    from config import MAX_TASK_ATTEMPTS, MIN_QUALITY_SCORE
+    console.print(
+        Panel.fit(
+            f"[bold cyan]Design-Code Multi-Agent System  (LangGraph)[/bold cyan]\n\n"
+            f"[yellow]Task ID      :[/yellow] {task_id}\n"
+            f"[yellow]Requirement  :[/yellow] {short_req}\n"
+            f"[dim]Max Task Attempts: {MAX_TASK_ATTEMPTS}  |  "
+            f"Min Quality Score: {MIN_QUALITY_SCORE}/10[/dim]",
+            title="🚀  Pipeline 启动",
+            border_style="cyan",
+        )
+    )
+
+    # ── 构建并执行 LangGraph Pipeline ─────────────────────────────────────────
+    pipeline = build_pipeline()
+    initial_state: PipelineState = {
+        "task_id": task_id,
+        "requirement": requirement,
+        "current_subtask_idx": 0,
+        "current_attempt": 0,
+        "task_results": [],
+        "history": [],
+    }
+
     try:
-        state = orchestrator.run(requirement)
-        return 0 if state.status.value == "completed" else 1
+        final_state: PipelineState = pipeline.invoke(initial_state)
     except KeyboardInterrupt:
         console.print("\n[yellow]用户中断[/yellow]")
         return 130
     except Exception as exc:
-        logger.error(f"未捕获异常：{exc}")
-        return 1
+        logger.error(f"Pipeline 运行失败：{exc}")
+        console.print(f"\n[bold red]❌ Pipeline 失败：{exc}[/bold red]")
+        raise
+
+    # ── 保存输出 ───────────────────────────────────────────────────────────────
+    _save_output(final_state)
+
+    # ── 打印汇总 ───────────────────────────────────────────────────────────────
+    _print_summary(final_state)
+
+    return 0
+
+
+# ── 输出 & 显示 ────────────────────────────────────────────────────────────────
+
+
+def _save_output(state: PipelineState) -> None:
+    final_code = state.get("final_code")
+    if not final_code:
+        return
+
+    output_dir = Path(__file__).parent / "output"
+    output_dir.mkdir(exist_ok=True)
+
+    lang = (state.get("final_language") or "python").lower()
+    ext = _EXT_MAP.get(lang, ".txt")
+    out_path = output_dir / f"task_{state['task_id']}{ext}"
+
+    passed = sum(1 for tr in state.get("task_results", []) if tr.passed)
+    total = len(state.get("task_results", []))
+    cc = "#" if lang in ("python", "ruby", "shell", "bash") else "//"
+    header = (
+        f"{cc} Task ID     : {state['task_id']}\n"
+        f"{cc} Tasks       : {passed}/{total} passed\n"
+        f"{cc} Requirement : {state['requirement']}\n"
+        f"{cc} Generated by: Design-Code Multi-Agent System (LangGraph)\n\n"
+    )
+
+    out_path.write_text(header + final_code, encoding="utf-8")
+    console.print(f"\n  [green]💾 代码已保存至：{out_path}[/green]")
+
+
+def _print_summary(state: PipelineState) -> None:
+    task_results = state.get("task_results", [])
+    test_result = state.get("test_result")
+
+    # 子任务结果表
+    table = Table(title="📊 各子任务执行结果", show_header=True, header_style="bold magenta")
+    table.add_column("子任务", style="yellow", width=25)
+    table.add_column("尝试次数", style="cyan", justify="center", width=8)
+    table.add_column("最终得分", style="green", justify="center", width=10)
+    table.add_column("状态", justify="center", width=10)
+    table.add_column("备注", style="dim")
+    for tr in task_results:
+        score = tr.review_result.score if tr.review_result else 0.0
+        status_str = "✅ 通过" if tr.passed else "⚠ 未通过"
+        note = tr.failure_notes[0][:40] if tr.failure_notes else ""
+        table.add_row(tr.subtask.title, str(tr.attempts), f"{score:.1f}/10", status_str, note)
+    console.print(table)
+
+    # 汇总面板
+    passed_count = sum(1 for tr in task_results if tr.passed)
+    test_status = "✅ 通过" if (test_result and test_result.passed) else "⚠ 失败/跳过"
+    console.print(
+        Panel(
+            f"[bold green]✅ 代码生成完成[/bold green]\n\n"
+            f"  任务 ID      : {state.get('task_id')}\n"
+            f"  语言         : {state.get('final_language')}\n"
+            f"  子任务总数    : {len(task_results)}\n"
+            f"  通过子任务    : {passed_count} / {len(task_results)}\n"
+            f"  测试状态     : {test_status}\n",
+            title="🎉  Pipeline 完成  (LangGraph)",
+            border_style="green",
+        )
+    )
+
+    # 最终代码展示
+    final_code = state.get("final_code") or ""
+    syntax = Syntax(
+        final_code,
+        (state.get("final_language") or "text").lower(),
+        theme="monokai",
+        line_numbers=True,
+    )
+    console.print(
+        Panel(syntax, title=f"📄 最终代码（{state.get('final_language')}）", border_style="green")
+    )
 
 
 def _print_banner() -> None:
     banner = """
 ╔══════════════════════════════════════════════════════╗
-║      Multi-Agent Code Generation System              ║
+║    Design-Code Multi-Agent System  (LangGraph)       ║
 ║                                                      ║
-║  Planner → Coder → Reviewer → [iterate] → Tests     ║
+║  Designer → Coder → Reviewer → [retry≤3] → Tests    ║
 ╚══════════════════════════════════════════════════════╝
 """
     console.print(f"[bold cyan]{banner}[/bold cyan]")
@@ -81,3 +204,4 @@ def _print_banner() -> None:
 
 if __name__ == "__main__":
     sys.exit(main())
+
