@@ -132,12 +132,28 @@ def _run_python(code_result: CodeResult, plan: PlanResult) -> TestResult:
             os.unlink(tmp_path)
 
 
+def _strip_useless_imports(tc: str) -> str:
+    """
+    移除测试用例中形如 "from xxx import yyy; " 的导入语句。
+    所有代码会被合并到同一个文件中执行，模型生成的自我 import
+    语句（引用一个并不存在的模块文件）必然导致 ModuleNotFoundError，
+    因此直接过滤掉，只保留真正的测试逻辑语句。
+    """
+    if ";" not in tc and not tc.strip().startswith(("import ", "from ")):
+        return tc
+    stmts = [s.strip() for s in tc.split(";") if s.strip()]
+    kept = [s for s in stmts if not s.startswith(("import ", "from "))]
+    return "; ".join(kept) if kept else tc
+
+
 def _build_python_test_file(source_code: str, test_cases: List[str]) -> str:
     """将源码与自动生成的测试断言合并为一个可执行文件。"""
     lines = [source_code, ""]
 
     if not test_cases:
         return "\n".join(lines)
+
+    test_cases = [_strip_useless_imports(tc) for tc in test_cases]
 
     lines += [
         "# ── 自动生成的测试用例 ──────────────────────────────────",
@@ -147,8 +163,25 @@ def _build_python_test_file(source_code: str, test_cases: List[str]) -> str:
     ]
 
     for tc in test_cases:
-        # 支持 "expr == expected" 格式的断言
-        if "==" in tc:
+        # 用 repr() 生成安全的字符串字面量，避免 tc 内部引号与 f-string 引号冲突
+        tc_literal = repr(tc)
+
+        if ";" in tc or " assert " in tc or tc.strip().startswith("assert"):
+            # 多语句测试用例（如 in-place 修改场景）：
+            # "s = [...]; reverse_string(s); assert s == [...]"
+            # 按 "; " 拆分为多条独立语句依次执行
+            stmts = [s.strip() for s in tc.split(";") if s.strip()]
+            lines += [f"    try:"]
+            lines += [f"        {stmt}" for stmt in stmts]
+            lines += [
+                f"        print('✓ ' + {tc_literal})",
+                f"        _passed += 1",
+                f"    except Exception as _e:",
+                f"        print('✗ ' + {tc_literal} + '  →  ' + str(_e))",
+                f"        _failed += 1",
+            ]
+        elif "==" in tc:
+            # 支持 "expr == expected" 格式的断言（适用于有返回值的函数）
             expr, expected = tc.split("==", 1)
             expr, expected = expr.strip(), expected.strip()
             lines += [
@@ -156,10 +189,10 @@ def _build_python_test_file(source_code: str, test_cases: List[str]) -> str:
                 f"        _result = {expr}",
                 f"        _expected = {expected}",
                 f"        assert _result == _expected, f\"期望 {{_expected}}，实际 {{_result}}\"",
-                f"        print(f'✓ {tc}')",
+                f"        print('✓ ' + {tc_literal})",
                 f"        _passed += 1",
                 f"    except Exception as _e:",
-                f"        print(f'✗ {tc}  →  {{_e}}')",
+                f"        print('✗ ' + {tc_literal} + '  →  ' + str(_e))",
                 f"        _failed += 1",
             ]
         else:
@@ -167,10 +200,10 @@ def _build_python_test_file(source_code: str, test_cases: List[str]) -> str:
             lines += [
                 f"    try:",
                 f"        {tc}",
-                f"        print(f'✓ {tc}')",
+                f"        print('✓ ' + {tc_literal})",
                 f"        _passed += 1",
                 f"    except Exception as _e:",
-                f"        print(f'✗ {tc}  →  {{_e}}')",
+                f"        print('✗ ' + {tc_literal} + '  →  ' + str(_e))",
                 f"        _failed += 1",
             ]
 

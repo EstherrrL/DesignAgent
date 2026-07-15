@@ -144,6 +144,18 @@ def generate_code(
 # ── 响应解析 ───────────────────────────────────────────────────────────────────
 
 
+def _strip_markdown_fence(code: str) -> str:
+    """
+    去除代码字符串首尾可能残留的 Markdown 代码围栏（```lang ... ```）。
+    有时模型在 JSON 的 "code" 字段值里仍会附带围栏，需要额外清理。
+    """
+    code = code.strip()
+    m = re.match(r"^```(?:\w+)?\n(.*?)\n?```$", code, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    return code
+
+
 def _parse_response(
     response: str, task_id: str, language: str, iteration: int
 ) -> CodeResult:
@@ -152,7 +164,7 @@ def _parse_response(
         json_match = re.search(r"\{.*\}", response, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group())
-            code = data.get("code", "").strip()
+            code = _strip_markdown_fence(data.get("code", "").strip())
             if code:
                 return CodeResult(
                     task_id=task_id,
@@ -167,6 +179,7 @@ def _parse_response(
     # 回退：从 Markdown 代码块提取
     md_match = re.search(r"```(?:\w+)?\n(.*?)```", response, re.DOTALL)
     code = md_match.group(1).strip() if md_match else response.strip()
+    code = _strip_markdown_fence(code)
 
     logger.warning("[generate_code] JSON 解析失败，已回退到 Markdown 提取")
     return CodeResult(

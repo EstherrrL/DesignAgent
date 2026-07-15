@@ -28,8 +28,12 @@ You are a senior software architect. Analyze the given requirement and produce a
 
 Instructions:
 1. Identify the programming language (default Python if not mentioned)
-2. Break the requirement into 2-6 concrete, implementable subtasks
-3. Define specific, runnable test cases (prefer assertion format: "func(args) == expected")
+2. Break the requirement into 1-6 concrete, implementable subtasks.
+   - If the requirement is simple (e.g. a single function), produce exactly ONE subtask.
+   - NEVER create meaningless meta subtasks such as "create a file" or "set up project structure".
+3. Define specific, runnable test cases. All code will be merged into ONE file and tests
+   run in that same scope — NEVER use "import" statements in test cases.
+   Prefer assertion format: "func(args) == expected"
 4. Note any important constraints or context
 
 Respond ONLY with valid JSON (no surrounding markdown):

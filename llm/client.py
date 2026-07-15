@@ -38,6 +38,8 @@ class LLMClient:
         self.client = OpenAI(
             api_key=ARK_API_KEY,
             base_url=ARK_BASE_URL,
+            max_retries=8,       # 网络偶发抖动时，多次重试提高成功率
+            timeout=60.0,        # 单次请求超时时间（秒）
         )
         self.model: str = ARK_MODEL_EP
         self._initialized = True

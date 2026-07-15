@@ -171,6 +171,32 @@ python main.py "Create a Go HTTP server with rate limiting middleware"
 
 ---
 
+## Demo 快速上手
+
+1. 启动后端（示例使用 FastAPI）：
+
+```bash
+# 在项目根目录
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install fastapi uvicorn
+cd backend
+uvicorn demo:app --reload --port 8000
+```
+
+2. 启动前端（另一个终端）：
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+3. 打开浏览器访问前端（如果 Vite 分配端口不同，参考控制台输出），在文本框输入需求并提交，即可看到响应。
+
+---
+
 ## 📊 运行示例
 
 ```

@@ -116,13 +116,22 @@ def apply_fix(
 # ── 响应解析 ───────────────────────────────────────────────────────────────────
 
 
+def _strip_markdown_fence(code: str) -> str:
+    """去除代码字符串首尾可能残留的 Markdown 代码围栏（```lang ... ```）。"""
+    code = code.strip()
+    m = re.match(r"^```(?:\w+)?\n(.*?)\n?```$", code, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    return code
+
+
 def _parse_response(raw: str, original: CodeResult, iteration: int) -> FixResult:
     """将 LLM 原始响应解析为 FixResult。"""
     try:
         json_match = re.search(r"\{.*\}", raw, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group())
-            fixed_code = data.get("fixed_code", "").strip()
+            fixed_code = _strip_markdown_fence(data.get("fixed_code", "").strip())
             if fixed_code:
                 return FixResult(
                     task_id=original.task_id,
@@ -137,6 +146,7 @@ def _parse_response(raw: str, original: CodeResult, iteration: int) -> FixResult
     # 回退：提取 Markdown 代码块
     md_match = re.search(r"```(?:\w+)?\n(.*?)```", raw, re.DOTALL)
     fixed_code = md_match.group(1).strip() if md_match else original.code
+    fixed_code = _strip_markdown_fence(fixed_code)
 
     logger.warning("[apply_fix] JSON 解析失败，已回退到 Markdown 提取")
     return FixResult(
