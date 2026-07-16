@@ -48,6 +48,13 @@ Instructions:
      DO NOT write "func(args) == expected". Instead write a two-statement test case
      separated by "; " that first calls the function on a named variable, then asserts
      on that variable, e.g.: "s = ['h','e','l','l','o']; reverse_string(s); assert s == ['o','l','l','e','h']"
+   - Each test case MUST be a SINGLE LINE containing only expression(s)/assert statement(s)
+     separated by "; ". NEVER include a "class " or "def " definition, multi-line code
+     blocks, or newline characters inside a test case — those belong in the implementation
+     code, not the test case string.
+   - For custom types like linked-list or tree nodes that are ALREADY defined in the
+     implementation code (e.g. class ListNode), construct instances directly using that
+     class name in the test case, e.g.: "n = ListNode(1); n.next = ListNode(2); s = Solution(); r = s.reverseList(n); assert r.val == 2"
 4. Note any important constraints or context
 
 Respond ONLY with valid JSON (no surrounding markdown):

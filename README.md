@@ -1,4 +1,7 @@
+
 # Design-Code Multi-Agent System
+
+>  本项目基于 [LangGraph](https://github.com/langchain-ai/langgraph) 实现多 Agent 状态流转与流程编排。
 
 > 用多个 AI Agent 模拟真实软件团队的协作开发流程：**架构师设计 → 工程师编码 → 审查员复核 → 自动测试**
 

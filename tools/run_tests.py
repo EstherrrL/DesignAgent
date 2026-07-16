@@ -132,6 +132,26 @@ def _run_python(code_result: CodeResult, plan: PlanResult) -> TestResult:
             os.unlink(tmp_path)
 
 
+def _is_invalid_test_case(tc: str) -> bool:
+    """
+    检测测试用例是否为"非法"内容——即模型误把完整的类/函数定义
+    当作测试用例输出，而不是单行断言/表达式。
+    这类内容如果被当作单行语句拼接进测试文件，会破坏 Python 语法
+    （例如 "class Foo: def __init__..." 被压成一行），
+    因此需要提前过滤掉，避免整个测试脚本因语法错误而崩溃。
+    """
+    stripped = tc.strip()
+    if not stripped:
+        return True
+    # 真正的换行符：说明是多行代码块，而不是单行测试用例
+    if "\n" in tc:
+        return True
+    # 明显是类/函数定义而非断言表达式
+    if re.search(r"(^|;)\s*(class|def)\s+\w+", stripped):
+        return True
+    return False
+
+
 def _strip_useless_imports(tc: str) -> str:
     """
     移除测试用例中形如 "from xxx import yyy; " 的导入语句。
@@ -163,8 +183,18 @@ def _build_python_test_file(source_code: str, test_cases: List[str]) -> str:
     ]
 
     for tc in test_cases:
+        # 过滤掉非法测试用例（模型误把完整类/函数定义当作测试用例输出），
+        # 避免把它们压成一行导致整个测试文件语法错误崩溃。
+        if _is_invalid_test_case(tc):
+            logger.warning(f"[run_tests] 跳过非法测试用例（疑似代码块而非断言）：{tc[:80]!r}")
+            lines += [
+                f"    print('⚠ 跳过非法测试用例（疑似代码块而非断言）：' + {tc[:80]!r})",
+            ]
+            continue
+
         # 用 repr() 生成安全的字符串字面量，避免 tc 内部引号与 f-string 引号冲突
         tc_literal = repr(tc)
+
 
         if ";" in tc or " assert " in tc or tc.strip().startswith("assert"):
             # 多语句测试用例（如 in-place 修改场景）：

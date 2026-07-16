@@ -34,6 +34,9 @@ Instructions:
 3. Define specific, runnable test cases. All code will be merged into ONE file and tests
    run in that same scope — NEVER use "import" statements in test cases.
    Prefer assertion format: "func(args) == expected"
+   Each test case MUST be a single line containing only expression(s)/assert statement(s)
+   separated by "; ". NEVER include a "class " or "def " definition, multi-line code
+   blocks, or newline characters inside a test case.
 4. Note any important constraints or context
 
 Respond ONLY with valid JSON (no surrounding markdown):
